@@ -199,7 +199,6 @@ We've included a `vercel.json` to handle all unmatched routes and send them to `
 ]
 ```
 
-> > > > > > > f6d5ef3 (Initial EasyMed MVP commit)
 
 ---
 
@@ -224,4 +223,4 @@ Punjabi voice commands
 Regional dialect support
 Multi-script text handling
 EasyMed - Transforming Healthcare Through AI Innovation
-Built with ❤️ for India's Healthcare Future
+Built by Praveen J with ❤️ for India's Healthcare Future
