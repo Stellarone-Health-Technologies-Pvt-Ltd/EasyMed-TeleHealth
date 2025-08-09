@@ -1,0 +1,307 @@
+diff --git a/src/lib/voice/voiceMap.ts b/src/lib/voice/voiceMap.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/lib/voice/voiceMap.ts
+@@ -0,0 +1,9 @@
++export type VoiceMode = "normal" | "emergency";
++
++export const VOICE_MAP: Record<string, { normal: string; emergency: string }> = {
++  "en-IN": { normal: "en-IN-NeerjaNeural",  emergency: "en-IN-PrabhatNeural"  },
++  "hi-IN": { normal: "hi-IN-SwaraNeural",   emergency: "hi-IN-MadhurNeural"   },
++  "ta-IN": { normal: "ta-IN-PadmaNeural",   emergency: "ta-IN-ValluvarNeural" },
++  "te-IN": { normal: "te-IN-SreeNeural",    emergency: "te-IN-ChaitanyaNeural"},
++  "kn-IN": { normal: "kn-IN-ManjulaNeural", emergency: "kn-IN-GuruNeural"     }
++};
+
+diff --git a/src/lib/voice/useVoice.ts b/src/lib/voice/useVoice.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/lib/voice/useVoice.ts
+@@ -0,0 +1,114 @@
++import { useCallback, useEffect, useRef, useState } from "react";
++import * as SpeechSDK from "microsoft-cognitiveservices-speech-sdk";
++import { VOICE_MAP, VoiceMode } from "./voiceMap";
++import i18n from "../../i18n"; // adjust path if your i18n instance lives elsewhere
++
++const TOKEN_ENDPOINT = import.meta.env.VITE_SPEECH_TOKEN_ENDPOINT || "/api/azure-tts-token";
++
++function escapeXml(s: string) {
++  return s.replace(/[<>&"']/g, (c) =>
++    c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === "&" ? "&amp;" : c === '"' ? "&quot;" : "&apos;"
++  );
++}
++
++export function useVoice() {
++  const [loading, setLoading] = useState(false);
++  const [status, setStatus] = useState<string | null>(null);
++  const [lastTranscript, setLastTranscript] = useState<string | null>(null);
++
++  const recRef = useRef<SpeechSDK.SpeechRecognizer | null>(null);
++  const synthRef = useRef<SpeechSDK.SpeechSynthesizer | null>(null);
++
++  const fetchToken = useCallback(async () => {
++    const res = await fetch(TOKEN_ENDPOINT, { method: "POST" });
++    if (!res.ok) throw new Error("Failed to fetch Azure Speech token. Add the token API in Step 3.");
++    return res.json() as Promise<{ token: string; region: string }>;
++  }, []);
++
++  const initRecognizer = useCallback(async (langCode: string) => {
++    const { token, region } = await fetchToken();
++    if (recRef.current) { try { recRef.current.close(); } catch {} recRef.current = null; }
++    const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
++    speechConfig.speechRecognitionLanguage = langCode;
++    const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
++    recRef.current = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
++  }, [fetchToken]);
++
++  const initSynth = useCallback(async (voiceName: string) => {
++    const { token, region } = await fetchToken();
++    if (synthRef.current) { try { synthRef.current.close(); } catch {} synthRef.current = null; }
++    const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
++    speechConfig.speechSynthesisVoiceName = voiceName;
++    const audioConfig = SpeechSDK.AudioConfig.fromDefaultSpeakerOutput();
++    synthRef.current = new SpeechSDK.SpeechSynthesizer(speechConfig, audioConfig);
++  }, [fetchToken]);
++
++  const listenOnce = useCallback(async (langCode: string) => {
++    setLoading(true); setStatus("Requesting mic & listening…");
++    try {
++      await initRecognizer(langCode);
++      if (!recRef.current) throw new Error("Recognizer not ready");
++      return await new Promise<string>((resolve, reject) => {
++        recRef.current!.recognizeOnceAsync(
++          (result) => {
++            if (result.reason === SpeechSDK.ResultReason.RecognizedSpeech) resolve(result.text || "");
++            else reject(new Error("No speech recognized"));
++          },
++          (err) => reject(err)
++        );
++      });
++    } finally {
++      setLoading(false);
++    }
++  }, [initRecognizer]);
++
++  const speak = useCallback(async (langCode: string, text: string, mode: VoiceMode = "normal") => {
++    setLoading(true); setStatus("Speaking…");
++    try {
++      const voiceName = (VOICE_MAP[langCode] || VOICE_MAP["en-IN"])[mode];
++      await initSynth(voiceName);
++      if (!synthRef.current) throw new Error("Synth not ready");
++      const style = mode === "normal" ? "empathetic" : "serious";
++      const ssml =
++        `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="${langCode}">
++           <voice name="${voiceName}">
++             <mstts:express-as style="${style}" styledegree="2">
++               <prosody rate="0%">${escapeXml(text)}</prosody>
++             </mstts:express-as>
++           </voice>
++         </speak>`;
++      await new Promise<void>((resolve, reject) => {
++        synthRef.current!.speakSsmlAsync(
++          ssml,
++          (r) => r.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted ? resolve() : reject(new Error("TTS failed")),
++          (e) => reject(e)
++        );
++      });
++    } finally {
++      setLoading(false); setStatus("Done");
++    }
++  }, [initSynth]);
++
++  useEffect(() => {
++    return () => {
++      try { recRef.current?.close(); } catch {}
++      try { synthRef.current?.close(); } catch {}
++    };
++  }, []);
++
++  return {
++    loading, status, lastTranscript,
++    async talk(onNLP?: (transcript: string, lang: string) => Promise<{ text: string, mode?: VoiceMode } | string>, mode: VoiceMode = "normal") {
++      const lang = (i18n?.language as string) || "en-IN";
++      const transcript = await listenOnce(lang);
++      setLastTranscript(transcript);
++      let reply: string | { text: string, mode?: VoiceMode } = i18n.t("voice.normal.reply", { lng: lang });
++      if (onNLP) reply = await onNLP(transcript, lang);
++      const isObj = typeof reply === "object";
++      const text = isObj ? (reply as any).text : (reply as string);
++      const m: VoiceMode = isObj && (reply as any).mode ? (reply as any).mode : mode;
++      await speak(lang, text, m);
++      return { transcript, reply: text, mode: m };
++    }
++  };
++}
+
+diff --git a/src/components/VoiceAssistant.tsx b/src/components/VoiceAssistant.tsx
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/components/VoiceAssistant.tsx
+@@ -0,0 +1,51 @@
++import React, { useState } from "react";
++import { useVoice } from "../lib/voice/useVoice";
++
++type Props = {
++  onNLP?: (transcript: string, lang: string) => Promise<{ text: string; mode?: "normal" | "emergency" } | string>;
++};
++
++export default function VoiceAssistant({ onNLP }: Props) {
++  const { talk, loading, status, lastTranscript } = useVoice();
++  const [lastReply, setLastReply] = useState<string>("—");
++
++  async function handleClick() {
++    try {
++      const { reply } = await talk(onNLP);
++      setLastReply(reply);
++    } catch (e) {
++      console.error(e);
++      alert("Voice failed. Did you add the token API? (Step 3)");
++    }
++  }
++
++  return (
++    <div className="w-full max-w-xl mx-auto p-4 bg-white rounded-lg shadow">
++      <div className="flex items-center justify-between">
++        <div>
++          <h3 className="text-lg font-semibold">Talk to EasyMed</h3>
++          <p className="text-sm text-gray-600">Ask about symptoms, medicines, or daily health tips.</p>
++        </div>
++        <button
++          onClick={handleClick}
++          disabled={loading}
++          className={`px-4 py-2 rounded-md text-white ${loading ? "bg-gray-400" : "bg-indigo-600 hover:bg-indigo-700"}`}
++        >
++          {loading ? "Listening…" : "Tap to Speak"}
++        </button>
++      </div>
++
++      <div className="mt-4 grid grid-cols-1 gap-3">
++        <div className="p-3 bg-gray-50 rounded">
++          <div className="text-xs text-gray-500">Last transcript</div>
++          <div className="mt-1 text-sm">{lastTranscript || "—"}</div>
++        </div>
++        <div className="p-3 bg-gray-50 rounded">
++          <div className="text-xs text-gray-500">Assistant reply</div>
++          <div className="mt-1 text-sm">{lastReply}</div>
++        </div>
++        <div className="text-xs text-gray-500">{status || ""}</div>
++      </div>
++    </div>
++  );
++}
+
+diff --git a/src/pages/VoiceTest.tsx b/src/pages/VoiceTest.tsx
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/pages/VoiceTest.tsx
+@@ -0,0 +1,19 @@
++import React from "react";
++import VoiceAssistant from "../components/VoiceAssistant";
++
++export default function VoiceTest() {
++  return (
++    <div className="min-h-screen bg-slate-50 p-6">
++      <div className="max-w-3xl mx-auto space-y-6">
++        <header>
++          <h1 className="text-2xl font-bold">EasyMed TeleHealth — Voice Test</h1>
++          <p className="text-gray-600">Multilingual voice-first healthcare for India</p>
++        </header>
++
++        <section>
++          <VoiceAssistant />
++        </section>
++      </div>
++    </div>
++  );
++}
+
+diff --git a/api/azure-tts-token.ts b/api/azure-tts-token.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/api/azure-tts-token.ts
+@@ -0,0 +1,25 @@
++import type { VercelRequest, VercelResponse } from '@vercel/node';
++
++export default async function handler(req: VercelRequest, res: VercelResponse) {
++  try {
++    const AZURE_KEY = process.env.AZURE_SPEECH_KEY;
++    const AZURE_REGION = process.env.AZURE_SPEECH_REGION; // e.g., 'southcentralus'
++    if (!AZURE_KEY || !AZURE_REGION) {
++      return res.status(500).json({ error: 'Missing Azure Speech credentials' });
++    }
++    const tokenResp = await fetch(`https://${AZURE_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken`, {
++      method: 'POST',
++      headers: { 'Ocp-Apim-Subscription-Key': AZURE_KEY }
++    });
++    if (!tokenResp.ok) {
++      const txt = await tokenResp.text();
++      console.error('Azure token error:', txt);
++      return res.status(500).json({ error: 'Failed to retrieve token' });
++    }
++    const token = await tokenResp.text();
++    return res.status(200).json({ token, region: AZURE_REGION });
++  } catch (err: any) {
++    console.error(err);
++    return res.status(500).json({ error: 'Server error' });
++  }
++}
+
+diff --git a/docs/VOICE_ASSISTANT.md b/docs/VOICE_ASSISTANT.md
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/docs/VOICE_ASSISTANT.md
+@@ -0,0 +1,37 @@
++# EasyMed Voice Assistant (Browser)
++
++This doc explains the browser-based Speech-to-Text → NLP → Text-to-Speech flow with Azure Speech.
++
++## Install
++```bash
++npm i microsoft-cognitiveservices-speech-sdk
++```
++
++## Env
++Add to `.env.example` (no secrets here):
++```
++AZURE_SPEECH_REGION=southcentralus
++VITE_SPEECH_TOKEN_ENDPOINT=/api/azure-tts-token
++```
++
++On Vercel, set **Environment Variables**:
++- `AZURE_SPEECH_KEY` (Secret) — from Azure
++- `AZURE_SPEECH_REGION` — e.g. `southcentralus`
++
++## Files
++- `src/lib/voice/voiceMap.ts`
++- `src/lib/voice/useVoice.ts`
++- `src/components/VoiceAssistant.tsx`
++- `src/pages/VoiceTest.tsx`
++- `api/azure-tts-token.ts`
++
++## Usage
++- Start dev server: `npm run dev`
++- Open `/voice-test` route (add a router entry if needed)
++- Click **Tap to Speak**, allow mic access
++- You should see transcript + hear TTS in the selected i18n language
++
++## Notes
++- Do **not** expose Azure subscription key in the browser. The token API issues a short-lived token.
++- Extend `VOICE_MAP` when you add Bengali/Marathi/Malayalam.
++- Plug your NLP in `useVoice.talk(onNLP)`.
+
+diff --git a/.env.example b/.env.example
+index e69de29..badd00d 100644
+--- a/.env.example
++++ b/.env.example
+@@ -0,0 +1,5 @@
++# === Voice assistant (Azure Speech) ===
++# You will NOT expose the key in the browser.
++# We'll fetch a short-lived token from a server endpoint.
++AZURE_SPEECH_REGION=southcentralus
++VITE_SPEECH_TOKEN_ENDPOINT=/api/azure-tts-token
