@@ -22,6 +22,9 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+      },
       external: ["mongodb", "crypto", "util"], // Mark as external for build only
     },
   },
