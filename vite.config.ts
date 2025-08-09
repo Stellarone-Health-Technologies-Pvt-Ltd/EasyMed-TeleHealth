@@ -29,6 +29,16 @@ export default defineConfig({
 {
   "exclude": ["node_modules", "dist", "build", "api"]
 }
+    {
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "types": ["vite/client"]
+  },
+  "exclude": ["node_modules", "dist", "build", "api"]
+}
     },
   },
 });
