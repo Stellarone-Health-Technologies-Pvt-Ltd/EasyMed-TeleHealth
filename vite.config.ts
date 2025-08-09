@@ -26,6 +26,9 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
       },
       external: ["mongodb", "crypto", "util"], // Mark as external for build only
+{
+  "exclude": ["node_modules", "dist", "build", "api"]
+}
     },
   },
 });
