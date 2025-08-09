@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-export default async function handler(req: any, res: any) { {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const AZURE_KEY = process.env.AZURE_SPEECH_KEY;
-    const AZURE_REGION = process.env.AZURE_SPEECH_REGION; // e.g., 'southcentralus'
+    const AZURE_REGION = process.env.AZURE_SPEECH_REGION; // e.g., 'centralindia'
     if (!AZURE_KEY || !AZURE_REGION) {
       return res.status(500).json({ error: 'Missing Azure Speech credentials' });
     }
