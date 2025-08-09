@@ -26,18 +26,6 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
       },
       external: ["mongodb", "crypto", "util"], // Mark as external for build only
-  "exclude": ["node_modules", "dist", "build", "api"]
-}
-    {
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "jsx": "react-jsx",
-    "moduleResolution": "Bundler",
-    "types": ["vite/client"]
-  },
-  "exclude": ["node_modules", "dist", "build", "api"]
-}
     },
   },
 });
