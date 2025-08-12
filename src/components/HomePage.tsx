@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { translations } from '../translations/index';
+import FirebaseBlazeShowcase from './FirebaseBlazeShowcase';
 
 interface HomePageProps {
   onNavigateToLogin: () => void;
@@ -10,6 +11,7 @@ interface HomePageProps {
 const HomePage: React.FC<HomePageProps> = ({ onNavigateToLogin }) => {
   const { currentLanguage, setLanguage } = useLanguage();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [showBlazeShowcase, setShowBlazeShowcase] = useState(false);
   
   // Helper function to get homepage translations
   const getHomepageTranslation = (key: string): string => {
@@ -159,13 +161,21 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToLogin }) => {
             </div>
           </div>
 
-          <div className="mt-10">
+          <div className="mt-10 space-y-4">
             <button 
               onClick={onNavigateToLogin}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-10 py-4 rounded-full font-bold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 shadow-2xl transform hover:scale-105"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-10 py-4 rounded-full font-bold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 shadow-2xl transform hover:scale-105 mr-4"
             >
               {getHomepageTranslation('startJourney')}
             </button>
+            
+            <button 
+              onClick={() => setShowBlazeShowcase(true)}
+              className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:from-orange-600 hover:to-red-700 transition-all duration-300 shadow-2xl transform hover:scale-105"
+            >
+              🔥 Firebase Blaze Features Demo
+            </button>
+            
             <p className="mt-3 text-sm text-gray-500">{getHomepageTranslation('noCreditCard')}</p>
           </div>
         </div>
@@ -264,6 +274,11 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToLogin }) => {
           &copy; {new Date().getFullYear()} EasyMed-TeleHealth. {getHomepageTranslation('allRightsReserved')}
         </div>
       </footer>
+
+      {/* Firebase Blaze Showcase Modal */}
+      {showBlazeShowcase && (
+        <FirebaseBlazeShowcase onClose={() => setShowBlazeShowcase(false)} />
+      )}
     </div>
   );
 };

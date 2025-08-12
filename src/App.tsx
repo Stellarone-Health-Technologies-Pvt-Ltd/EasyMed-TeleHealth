@@ -3,15 +3,20 @@ import PatientDashboard from "./components/PatientDashboard";
 import LoginPage from "./components/LoginPage";
 import HomePage from "./components/HomePage";
 import FloatingVoiceAssistant from "./components/FloatingVoiceAssistant";
+import FourRoleHealthcareEcosystem from "./components/FourRoleHealthcareEcosystem";
 import { LanguageProvider, useLanguage } from "./contexts/LanguageContext";
 import "./App.css";
 
 interface User {
+  id: string;
   userType: "patient" | "doctor" | "admin" | "asha";
   name: string;
   phone?: string;
   email?: string;
   role?: string;
+  specialization?: string;
+  location?: string;
+  permissions?: string[];
 }
 
 function AppContent() {
@@ -31,20 +36,33 @@ function AppContent() {
   ];
 
   const handleLogin = (
-    userType: "patient",
+    userType: "patient" | "doctor" | "admin" | "asha",
     userInfo: any,
   ) => {
     const newUser: User = {
-      userType: "patient",
+      id: `user_${Date.now()}`, // Generate unique ID
+      userType,
       name: userInfo.name,
       phone: userInfo.phone,
       email: userInfo.email,
-      role: "patient",
+      role: userType,
+      specialization: userType === 'doctor' ? userInfo.specialization : undefined,
+      location: userInfo.location,
+      permissions: getUserPermissions(userType)
     };
 
     setCurrentUser(newUser);
     setIsLoggedIn(true);
     setCurrentView('dashboard');
+  };
+
+  const getUserPermissions = (userType: string) => {
+    switch (userType) {
+      case 'doctor': return ['patient_monitoring', 'prescriptions', 'consultations', 'ai_diagnostics'];
+      case 'admin': return ['user_management', 'system_config', 'analytics', 'compliance'];
+      case 'asha': return ['community_health', 'data_collection', 'training', 'screening'];
+      default: return ['health_records', 'appointments', 'family_management', 'ai_assistant'];
+    }
   };
 
   const handleLogout = () => {
@@ -97,11 +115,14 @@ function AppContent() {
       if (isLoggedIn && currentUser) {
         return (
           <div className="min-h-screen bg-gray-50">
-            {/* Main Content - Patient Dashboard */}
-            <PatientDashboard userInfo={currentUser} onLogout={handleLogout} />
-
-            {/* Medini - Floating Voice Assistant */}
-            <FloatingVoiceAssistant onCommand={handleVoiceCommand} />
+            {/* Use the new 4-Role Healthcare Ecosystem */}
+            <FourRoleHealthcareEcosystem 
+              currentUser={currentUser}
+              onRoleSwitch={(role) => {
+                console.log('Role switch requested:', role);
+                // Handle role switching if needed
+              }}
+            />
           </div>
         );
       } else {
