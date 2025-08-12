@@ -1,14 +1,23 @@
-import React, { useState, useEffect } from "react";
-import {
-  Mic,
-  MicOff,
-  Volume2,
-  VolumeX,
-  MessageSquare,
-  Loader2,
-} from "lucide-react";
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Mic, 
+  MicOff, 
+  Volume2, 
+  VolumeX, 
+  Phone,
+  Search,
+  Calendar,
+  MapPin,
+  AlertTriangle,
+  MessageCircle,
+  Settings,
+  Languages
+} from 'lucide-react';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../config/firebase';
+import { ref, push } from 'firebase/database';
+import { realtimeDB } from '../config/firebase';
 import { useLanguage } from "../contexts/LanguageContext";
-import { voiceService, HealthVoiceCommands } from "../services/openai";
 
 interface EnhancedVoiceAssistantProps {
   userName?: string;
